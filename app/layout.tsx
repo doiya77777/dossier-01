@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "DOSSIER_01 — 个人档案",
-  description: "关于技术、生活与那些值得被记录的小事的私人档案。",
+  title: "AI 思考档案 — DOSSIER_01",
+  description: "记录 AI 如何改变我们的工作、创作、判断，以及我们对未来生活的想象。",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
