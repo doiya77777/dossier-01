@@ -1,0 +1,5 @@
+Asset: Toon Waterfall
+Source: https://opengameart.org/content/toon-waterfall
+Author: doodlebuilt
+License: CC0
+Downloaded for use in this project. The model is combined with the site's own Three.js shader, lighting, foam, fog, and environment.

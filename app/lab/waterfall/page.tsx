@@ -2,6 +2,7 @@
 import { useCallback, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 import { ThreeCanvas } from "../../../components/three/ThreeCanvas";
 import "./lab.css";
 
@@ -17,6 +18,7 @@ export default function WaterfallPage() {
     const rockMat = new THREE.MeshStandardMaterial({ color: "#596960", roughness: .95 }); const darkRockMat = new THREE.MeshStandardMaterial({ color: "#354844", roughness: 1 });
     const addRock = (x: number, y: number, z: number, sx: number, sy: number, sz: number) => { const mesh = new THREE.Mesh(new THREE.DodecahedronGeometry(1, 1), Math.random() > .45 ? rockMat : darkRockMat); mesh.position.set(x, y, z); mesh.scale.set(sx, sy, sz); mesh.rotation.set(Math.random(), Math.random(), Math.random()); world.add(mesh); };
     for (let i = 0; i < 17; i++) { const side = i % 2 ? 1 : -1; addRock(side * (2.8 + Math.random() * 1.2), 1 + Math.random() * 3, -1 + Math.random() * 4, 1.2 + Math.random(), 1.5 + Math.random() * 2, 1.2 + Math.random()); }
+    new GLTFLoader().load("/assets/waterfall/waterfall1.glb", (gltf) => { const asset = gltf.scene; asset.scale.setScalar(2.2); asset.position.set(0, -.4, -.7); asset.rotation.y = Math.PI; world.add(asset); });
     const ground = new THREE.Mesh(new THREE.CircleGeometry(5.5, 48), new THREE.MeshStandardMaterial({ color: "#45665d", roughness: .9 })); ground.rotation.x = -Math.PI / 2; ground.position.y = -.55; world.add(ground);
     const pool = new THREE.Mesh(new THREE.CircleGeometry(3.2, 64), new THREE.MeshStandardMaterial({ color: "#1f8394", roughness: .12, metalness: .2, transparent: true, opacity: .9 })); pool.rotation.x = -Math.PI / 2; pool.position.set(0, -.42, 1.5); world.add(pool);
     const waterMaterial = new THREE.ShaderMaterial({ transparent: true, side: THREE.DoubleSide, uniforms: { uTime: { value: 0 } }, vertexShader: `varying vec2 vUv; uniform float uTime; void main(){vUv=uv;vec3 p=position;p.x+=sin(uv.y*18.0+uTime*3.0)*0.08*(1.0-uv.y);p.z+=cos(uv.y*14.0+uTime*2.0)*0.05;gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.0);}`, fragmentShader: `varying vec2 vUv; uniform float uTime; void main(){float streaks=0.55+0.45*sin(vUv.x*70.0+sin(vUv.y*10.0)*2.0-uTime*5.0);float fade=smoothstep(0.0,0.12,vUv.y)*(1.0-smoothstep(.78,1.0,vUv.y));vec3 color=mix(vec3(.15,.65,.75),vec3(.65,1.0,1.0),streaks);gl_FragColor=vec4(color,fade*.72);}` });
