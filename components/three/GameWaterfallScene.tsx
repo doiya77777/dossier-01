@@ -3,32 +3,95 @@
 import { useCallback, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import {
+  createRoundSprite,
+  createSurfaceMaterial,
+  createWaterfallGeometry,
+  createWaterfallMaterial,
+} from "./animeWaterfall";
 import { ThreeCanvas, type ThreeCanvasSession } from "./ThreeCanvas";
 
-const ASSET_ROOT = "/assets/nature";
+type SplashParticle = {
+  origin: THREE.Vector3;
+  velocity: THREE.Vector3;
+  age: number;
+  life: number;
+};
 
-function radialTexture() {
-  const canvas = document.createElement("canvas");
-  canvas.width = 128;
-  canvas.height = 128;
-  const context = canvas.getContext("2d")!;
-  const gradient = context.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gradient.addColorStop(0, "rgba(255,255,255,1)");
-  gradient.addColorStop(0.35, "rgba(220,251,255,.82)");
-  gradient.addColorStop(1, "rgba(220,251,255,0)");
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, 128, 128);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
+const cliffColors = ["#3d5754", "#496560", "#58756b", "#304844"];
+
+function createCliffRock(
+  color: string,
+  position: [number, number, number],
+  scale: [number, number, number],
+  rotation: [number, number, number],
+) {
+  const rock = new THREE.Mesh(
+    new THREE.DodecahedronGeometry(1, 1),
+    new THREE.MeshStandardMaterial({
+      color,
+      roughness: 0.96,
+      metalness: 0,
+      flatShading: true,
+    }),
+  );
+  rock.position.set(...position);
+  rock.scale.set(...scale);
+  rock.rotation.set(...rotation);
+  rock.castShadow = true;
+  rock.receiveShadow = true;
+  return rock;
 }
 
-function markShadows(root: THREE.Object3D) {
-  root.traverse((object) => {
-    if (!(object instanceof THREE.Mesh)) return;
-    object.castShadow = true;
-    object.receiveShadow = true;
+function addCanyon(world: THREE.Group) {
+  const rocks: Array<{
+    position: [number, number, number];
+    scale: [number, number, number];
+    rotation: [number, number, number];
+  }> = [
+    { position: [-4.0, 1.2, -0.7], scale: [2.7, 3.2, 2.0], rotation: [0.1, 0.1, -0.16] },
+    { position: [-5.5, 3.8, -1.7], scale: [2.5, 3.0, 1.9], rotation: [0.2, 0.4, 0.15] },
+    { position: [-3.55, 5.4, -1.1], scale: [2.1, 2.35, 1.75], rotation: [-0.1, -0.2, 0.12] },
+    { position: [-6.7, 0.1, 1.0], scale: [2.8, 2.0, 2.5], rotation: [0.2, 0.5, 0.08] },
+    { position: [-4.9, -0.15, 3.1], scale: [2.0, 1.35, 1.8], rotation: [0.1, 0.8, -0.05] },
+    { position: [4.0, 1.2, -0.7], scale: [2.7, 3.2, 2.0], rotation: [0.1, -0.1, 0.16] },
+    { position: [5.5, 3.8, -1.7], scale: [2.5, 3.0, 1.9], rotation: [0.2, -0.4, -0.15] },
+    { position: [3.55, 5.4, -1.1], scale: [2.1, 2.35, 1.75], rotation: [-0.1, 0.2, -0.12] },
+    { position: [6.7, 0.1, 1.0], scale: [2.8, 2.0, 2.5], rotation: [0.2, -0.5, -0.08] },
+    { position: [4.9, -0.15, 3.1], scale: [2.0, 1.35, 1.8], rotation: [0.1, -0.8, 0.05] },
+    { position: [-2.55, 6.25, -2.45], scale: [2.15, 1.2, 1.7], rotation: [0.2, 0.15, -0.1] },
+    { position: [2.55, 6.25, -2.45], scale: [2.15, 1.2, 1.7], rotation: [0.2, -0.15, 0.1] },
+  ];
+
+  rocks.forEach((rock, index) => {
+    world.add(
+      createCliffRock(
+        cliffColors[index % cliffColors.length],
+        rock.position,
+        rock.scale,
+        rock.rotation,
+      ),
+    );
+  });
+
+  const mossMaterial = new THREE.MeshStandardMaterial({
+    color: "#6f9b70",
+    roughness: 1,
+    flatShading: true,
+  });
+  const mossGeometry = new THREE.IcosahedronGeometry(1, 1);
+  [
+    [-4.1, 4.45, 0.65, 1.45, 0.42, 0.85],
+    [-5.2, 1.55, 1.05, 1.2, 0.34, 0.72],
+    [4.1, 4.45, 0.65, 1.45, 0.42, 0.85],
+    [5.2, 1.55, 1.05, 1.2, 0.34, 0.72],
+    [-2.8, 6.8, -1.25, 1.0, 0.25, 0.6],
+    [2.8, 6.8, -1.25, 1.0, 0.25, 0.6],
+  ].forEach(([x, y, z, sx, sy, sz]) => {
+    const moss = new THREE.Mesh(mossGeometry, mossMaterial);
+    moss.position.set(x, y, z);
+    moss.scale.set(sx, sy, sz);
+    world.add(moss);
   });
 }
 
@@ -41,341 +104,253 @@ export function GameWaterfallScene() {
       camera: THREE.PerspectiveCamera,
       renderer: THREE.WebGLRenderer,
     ): ThreeCanvasSession => {
-      camera.fov = 40;
+      camera.fov = 38;
       camera.near = 0.1;
-      camera.far = 120;
-      camera.position.set(11.5, 6.6, 14);
+      camera.far = 80;
+      camera.position.set(9.6, 5.4, 14.5);
       camera.updateProjectionMatrix();
 
       const controls = new OrbitControls(camera, renderer.domElement);
-      controls.target.set(0, 2.6, -0.7);
+      controls.target.set(0, 2.75, 0);
       controls.enableDamping = true;
-      controls.dampingFactor = 0.055;
-      controls.minDistance = 7;
-      controls.maxDistance = 24;
-      controls.minPolarAngle = 0.55;
-      controls.maxPolarAngle = 1.48;
+      controls.dampingFactor = 0.06;
       controls.enablePan = false;
+      controls.minDistance = 9;
+      controls.maxDistance = 20;
+      controls.minPolarAngle = 0.75;
+      controls.maxPolarAngle = 1.4;
+      controls.minAzimuthAngle = -0.72;
+      controls.maxAzimuthAngle = 0.72;
 
-      scene.background = new THREE.Color("#b9d7d7");
-      scene.fog = new THREE.FogExp2("#b9d7d7", 0.026);
+      scene.background = new THREE.Color("#c5ded8");
+      scene.fog = new THREE.Fog("#c5ded8", 18, 42);
 
-      const sky = new THREE.Mesh(
-        new THREE.SphereGeometry(55, 32, 16),
-        new THREE.ShaderMaterial({
-          side: THREE.BackSide,
-          depthWrite: false,
-          uniforms: {
-            topColor: { value: new THREE.Color("#6c9fa5") },
-            bottomColor: { value: new THREE.Color("#dce8df") },
-          },
-          vertexShader:
-            "varying vec3 vPosition; void main(){vPosition=position;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}",
-          fragmentShader:
-            "varying vec3 vPosition;uniform vec3 topColor;uniform vec3 bottomColor;void main(){float h=smoothstep(-12.0,22.0,vPosition.y);gl_FragColor=vec4(mix(bottomColor,topColor,h),1.0);}",
-        }),
-      );
-      scene.add(sky);
-
-      const hemi = new THREE.HemisphereLight("#dff9ff", "#27372f", 2.4);
+      const hemi = new THREE.HemisphereLight("#f5fff8", "#314943", 2.25);
       scene.add(hemi);
-      const sun = new THREE.DirectionalLight("#fff3d3", 4.2);
-      sun.position.set(-8, 14, 8);
+      const sun = new THREE.DirectionalLight("#fff3ca", 4.1);
+      sun.position.set(-7, 13, 9);
       sun.castShadow = true;
-      sun.shadow.mapSize.set(2048, 2048);
-      sun.shadow.camera.left = -16;
-      sun.shadow.camera.right = 16;
-      sun.shadow.camera.top = 16;
-      sun.shadow.camera.bottom = -16;
+      sun.shadow.mapSize.set(1024, 1024);
+      sun.shadow.camera.left = -12;
+      sun.shadow.camera.right = 12;
+      sun.shadow.camera.top = 12;
+      sun.shadow.camera.bottom = -12;
       scene.add(sun);
-      const bounce = new THREE.PointLight("#62d8e8", 24, 18, 2);
-      bounce.position.set(0, 1.2, 2.5);
-      scene.add(bounce);
 
       const world = new THREE.Group();
-      world.rotation.y = -0.05;
+      world.position.y = -0.35;
       scene.add(world);
+      addCanyon(world);
 
-      const earthMaterial = new THREE.MeshStandardMaterial({
-        color: "#334c3c",
-        roughness: 0.96,
-      });
-      const island = new THREE.Mesh(
-        new THREE.CylinderGeometry(10.5, 11.8, 1.4, 48),
-        earthMaterial,
+      const ground = new THREE.Mesh(
+        new THREE.CircleGeometry(10.5, 48),
+        new THREE.MeshStandardMaterial({
+          color: "#526f61",
+          roughness: 1,
+          flatShading: true,
+        }),
       );
-      island.position.set(0, -1.08, 0.8);
-      island.receiveShadow = true;
-      world.add(island);
+      ground.rotation.x = -Math.PI / 2;
+      ground.position.y = -0.8;
+      ground.scale.set(1.25, 0.9, 1);
+      ground.receiveShadow = true;
+      world.add(ground);
 
-      const poolMaterial = new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        uniforms: {
-          uTime: { value: 0 },
-          deep: { value: new THREE.Color("#155d69") },
-          shallow: { value: new THREE.Color("#67c6c5") },
-        },
-        vertexShader: `
-          varying vec2 vUv;
-          varying float vWave;
-          uniform float uTime;
-          void main() {
-            vUv = uv;
-            vec3 p = position;
-            float wave = sin(p.x * 1.8 + uTime * 1.2) * .055
-              + cos(p.y * 2.4 - uTime * 1.5) * .035;
-            p.z += wave;
-            vWave = wave;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
-          }
-        `,
-        fragmentShader: `
-          varying vec2 vUv;
-          varying float vWave;
-          uniform vec3 deep;
-          uniform vec3 shallow;
-          uniform float uTime;
-          void main() {
-            float ripple = sin(length(vUv - vec2(.46,.55)) * 72.0 - uTime * 4.0);
-            float edge = smoothstep(.5, .12, distance(vUv, vec2(.5)));
-            vec3 color = mix(deep, shallow, .38 + vWave * 4.0 + ripple * .035);
-            gl_FragColor = vec4(color, edge * .94);
-          }
-        `,
+      const waterfallMaterial = createWaterfallMaterial(0.4);
+      const waterfall = new THREE.Mesh(
+        createWaterfallGeometry(),
+        waterfallMaterial,
+      );
+      waterfall.position.set(0, 2.95, -0.25);
+      waterfall.renderOrder = 3;
+      world.add(waterfall);
+
+      const lipMaterial = new THREE.MeshBasicMaterial({
+        color: "#eaffee",
       });
+      const lipBlobs: THREE.Mesh[] = [];
+      for (let i = 0; i < 8; i += 1) {
+        const lip = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(0.34 + (i % 3) * 0.035, 1),
+          lipMaterial,
+        );
+        lip.position.set(
+          -1.72 + i * 0.49,
+          6.39 + (i % 2) * 0.025,
+          -0.13 + (i % 3) * 0.025,
+        );
+        lip.scale.set(1.08, 0.27, 0.48);
+        lipBlobs.push(lip);
+        world.add(lip);
+      }
+
+      const streamMaterial = createSurfaceMaterial(false);
+      const stream = new THREE.Mesh(
+        new THREE.PlaneGeometry(4.15, 5.7, 18, 28),
+        streamMaterial,
+      );
+      stream.rotation.x = -Math.PI / 2;
+      stream.position.set(0, 6.42, -2.8);
+      world.add(stream);
+
+      const poolMaterial = createSurfaceMaterial(true);
       const pool = new THREE.Mesh(
-        new THREE.PlaneGeometry(10.5, 8.2, 80, 64),
+        new THREE.CircleGeometry(5.5, 72),
         poolMaterial,
       );
       pool.rotation.x = -Math.PI / 2;
-      pool.position.set(0, -0.31, 2.1);
-      pool.renderOrder = 2;
+      pool.position.set(0, -0.42, 2.05);
+      pool.scale.set(1.18, 0.77, 1);
+      pool.renderOrder = 1;
       world.add(pool);
 
-      const riverMaterial = new THREE.MeshStandardMaterial({
-        color: "#4fb3be",
-        roughness: 0.24,
+      const foamMaterial = new THREE.MeshBasicMaterial({
+        color: "#f5fff1",
         transparent: true,
-        opacity: 0.9,
+        opacity: 0.86,
+        depthWrite: false,
       });
-      const river = new THREE.Mesh(
-        new THREE.PlaneGeometry(3.5, 8, 24, 12),
-        riverMaterial,
-      );
-      river.rotation.x = -Math.PI / 2;
-      river.position.set(0, 5.05, -4.8);
-      world.add(river);
-
-      const sprite = radialTexture();
-      const foamCount = 520;
-      const foamPositions = new Float32Array(foamCount * 3);
-      const foamOrigins = new Float32Array(foamCount);
-      for (let i = 0; i < foamCount; i += 1) {
-        const angle = Math.random() * Math.PI * 2;
-        const radius = 0.45 + Math.random() * 3.1;
-        foamPositions[i * 3] = Math.cos(angle) * radius;
-        foamPositions[i * 3 + 1] = -0.08 + Math.random() * 0.28;
-        foamPositions[i * 3 + 2] = 1.35 + Math.sin(angle) * radius * 0.52;
-        foamOrigins[i] = Math.random() * Math.PI * 2;
+      const foamBlobs: THREE.Mesh[] = [];
+      const foamGroup = new THREE.Group();
+      foamGroup.position.set(0, -0.12, 0.55);
+      for (let i = 0; i < 9; i += 1) {
+        const angle = (i / 9) * Math.PI * 2;
+        const blob = new THREE.Mesh(
+          new THREE.IcosahedronGeometry(0.34 + (i % 3) * 0.055, 1),
+          foamMaterial,
+        );
+        blob.position.set(
+          Math.cos(angle) * (0.78 + (i % 2) * 0.24),
+          0.12 + (i % 3) * 0.055,
+          Math.sin(angle) * 0.42,
+        );
+        blob.scale.set(1.32, 0.36, 0.74);
+        foamBlobs.push(blob);
+        foamGroup.add(blob);
       }
-      const foamGeometry = new THREE.BufferGeometry();
-      foamGeometry.setAttribute(
-        "position",
-        new THREE.BufferAttribute(foamPositions, 3),
-      );
-      const foam = new THREE.Points(
-        foamGeometry,
-        new THREE.PointsMaterial({
-          color: "#e9ffff",
-          map: sprite,
-          size: 0.19,
-          transparent: true,
-          opacity: 0.68,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-        }),
-      );
-      foam.renderOrder = 4;
-      world.add(foam);
+      foamGroup.renderOrder = 4;
+      world.add(foamGroup);
 
-      const sprayCount = 380;
-      const sprayPositions = new Float32Array(sprayCount * 3);
-      const sprayVelocity = new Float32Array(sprayCount * 3);
-      const resetSpray = (i: number, first = false) => {
-        sprayPositions[i * 3] = (Math.random() - 0.5) * 3.4;
-        sprayPositions[i * 3 + 1] =
-          first ? Math.random() * 2.2 : -0.05 + Math.random() * 0.3;
-        sprayPositions[i * 3 + 2] = 0.2 + Math.random() * 2.3;
-        sprayVelocity[i * 3] = (Math.random() - 0.5) * 0.16;
-        sprayVelocity[i * 3 + 1] = 0.35 + Math.random() * 0.9;
-        sprayVelocity[i * 3 + 2] = Math.random() * 0.2;
-      };
-      for (let i = 0; i < sprayCount; i += 1) resetSpray(i, true);
-      const sprayGeometry = new THREE.BufferGeometry();
-      sprayGeometry.setAttribute(
-        "position",
-        new THREE.BufferAttribute(sprayPositions, 3),
-      );
-      const spray = new THREE.Points(
-        sprayGeometry,
-        new THREE.PointsMaterial({
-          color: "#ffffff",
-          map: sprite,
-          size: 0.22,
-          transparent: true,
-          opacity: 0.34,
-          depthWrite: false,
-        }),
-      );
-      spray.renderOrder = 5;
-      world.add(spray);
-
-      const loader = new GLTFLoader();
-      let cancelled = false;
-      const animatedMaps: THREE.Texture[] = [];
-
-      const load = (path: string) =>
-        loader.loadAsync(path).then((gltf) => {
-          if (cancelled) return null;
-          markShadows(gltf.scene);
-          return gltf.scene;
-        });
-
-      const place = (
-        source: THREE.Object3D | null,
-        position: [number, number, number],
-        scale: number | [number, number, number],
-        rotationY = 0,
-      ) => {
-        if (!source) return;
-        const clone = source.clone(true);
-        clone.position.set(...position);
-        if (typeof scale === "number") clone.scale.setScalar(scale);
-        else clone.scale.set(...scale);
-        clone.rotation.y = rotationY;
-        world.add(clone);
+      const sprite = createRoundSprite();
+      const splashCount = 110;
+      const splashPositions = new Float32Array(splashCount * 3);
+      const splashParticles: SplashParticle[] = [];
+      const resetSplash = (index: number, initial = false) => {
+        const origin = new THREE.Vector3(
+          (Math.random() - 0.5) * 2.25,
+          -0.02,
+          0.25 + Math.random() * 0.9,
+        );
+        const velocity = new THREE.Vector3(
+          (Math.random() - 0.5) * 1.8,
+          1.1 + Math.random() * 2.15,
+          0.25 + Math.random() * 1.35,
+        );
+        const life = 0.72 + Math.random() * 0.85;
+        const particle = splashParticles[index] ?? {
+          origin,
+          velocity,
+          age: 0,
+          life,
+        };
+        particle.origin.copy(origin);
+        particle.velocity.copy(velocity);
+        particle.life = life;
+        particle.age = initial ? Math.random() * life : 0;
+        splashParticles[index] = particle;
       };
 
-      Promise.all([
-        load(`${ASSET_ROOT}/cliff_waterfall_rock.glb`),
-        load(`${ASSET_ROOT}/cliff_waterfallTop_rock.glb`),
-        load(`${ASSET_ROOT}/cliff_large_rock.glb`),
-        load(`${ASSET_ROOT}/cliff_top_rock.glb`),
-        load(`${ASSET_ROOT}/rock_largeA.glb`),
-        load(`${ASSET_ROOT}/rock_largeC.glb`),
-        load(`${ASSET_ROOT}/rock_tallB.glb`),
-        load(`${ASSET_ROOT}/tree_pineTallA.glb`),
-        load(`${ASSET_ROOT}/tree_pineSmallC.glb`),
-        load(`${ASSET_ROOT}/plant_bushDetailed.glb`),
-        load(`${ASSET_ROOT}/grass_large.glb`),
-        load("/assets/waterfall/waterfall1.glb"),
-      ]).then(
-        ([
-          waterfallCliff,
-          waterfallTop,
-          cliff,
-          cliffTop,
-          rockA,
-          rockC,
-          tallRock,
-          tallPine,
-          smallPine,
-          bush,
-          grass,
-          waterfall,
-        ]) => {
-          if (cancelled) return;
-
-          place(waterfallCliff, [0, 1.45, -1.25], [4.8, 5.8, 4.5]);
-          place(waterfallTop, [0, 5.45, -1.3], [4.8, 2.5, 4.5]);
-          place(cliff, [-4.4, 1.15, -1.05], [5.1, 6.2, 4.7], 0.05);
-          place(cliff, [4.4, 1.15, -1.05], [5.1, 6.2, 4.7], Math.PI);
-          place(cliffTop, [-4.45, 5.15, -1.1], [5.1, 2.8, 4.7]);
-          place(cliffTop, [4.45, 5.15, -1.1], [5.1, 2.8, 4.7], Math.PI);
-
-          place(rockA, [-3.7, -0.22, 2.4], 2.7, 0.7);
-          place(rockC, [3.65, -0.27, 2.75], 2.35, -0.8);
-          place(tallRock, [-5.15, 0.15, 0.5], 2.25, 0.3);
-          place(rockA, [5.25, -0.3, 0.75], 1.8, -0.5);
-          place(rockC, [-1.9, -0.25, 4.9], 1.25, 1.1);
-          place(rockA, [2.15, -0.25, 5.25], 1.05, -0.4);
-
-          place(tallPine, [-5.2, 4.75, -1.8], 2.25, 0.3);
-          place(tallPine, [5.15, 4.65, -1.95], 2.05, -0.2);
-          place(smallPine, [-6.2, -0.38, 0.4], 1.8, 0.4);
-          place(smallPine, [6.35, -0.38, 0.8], 1.6, -0.5);
-          place(bush, [-4.15, -0.31, 3.35], 1.8);
-          place(bush, [4.35, -0.31, 3.7], 1.65, 0.8);
-          place(bush, [-2.65, -0.28, 5.15], 1.2, -0.3);
-          place(grass, [-5.7, -0.26, 3.6], 1.4);
-          place(grass, [5.55, -0.26, 4.1], 1.35, 0.6);
-
-          if (waterfall) {
-            waterfall.traverse((object) => {
-              if (!(object instanceof THREE.Mesh)) return;
-              const sourceMaterial = object.material as THREE.MeshStandardMaterial;
-              const material = sourceMaterial.clone();
-              material.transparent = true;
-              material.depthWrite = false;
-              material.opacity = 0.86;
-              if (sourceMaterial.map) {
-                material.map = sourceMaterial.map.clone();
-                material.map.wrapS = THREE.RepeatWrapping;
-                material.map.wrapT = THREE.RepeatWrapping;
-                material.map.needsUpdate = true;
-                animatedMaps.push(material.map);
-              }
-              object.material = material;
-              object.renderOrder = 3;
-              object.castShadow = false;
-            });
-            waterfall.position.set(-0.2, 5.1, -0.24);
-            waterfall.scale.set(1.62, 1.18, 1.62);
-            world.add(waterfall);
-          }
-          setReady(true);
-        },
+      for (let i = 0; i < splashCount; i += 1) resetSplash(i, true);
+      const splashGeometry = new THREE.BufferGeometry();
+      splashGeometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(splashPositions, 3),
       );
+      const splash = new THREE.Points(
+        splashGeometry,
+        new THREE.PointsMaterial({
+          color: "#f4fff1",
+          map: sprite,
+          alphaTest: 0.45,
+          transparent: true,
+          opacity: 0.92,
+          size: 0.12,
+          sizeAttenuation: true,
+          depthWrite: false,
+        }),
+      );
+      splash.renderOrder = 5;
+      world.add(splash);
+
+      const mistPositions = new Float32Array(28 * 3);
+      for (let i = 0; i < 28; i += 1) {
+        mistPositions[i * 3] = (Math.random() - 0.5) * 3.5;
+        mistPositions[i * 3 + 1] = Math.random() * 1.65;
+        mistPositions[i * 3 + 2] = 0.55 + Math.random() * 1.7;
+      }
+      const mistGeometry = new THREE.BufferGeometry();
+      mistGeometry.setAttribute(
+        "position",
+        new THREE.BufferAttribute(mistPositions, 3),
+      );
+      const mist = new THREE.Points(
+        mistGeometry,
+        new THREE.PointsMaterial({
+          color: "#dff9ed",
+          map: sprite,
+          transparent: true,
+          opacity: 0.13,
+          size: 1.05,
+          depthWrite: false,
+        }),
+      );
+      mist.renderOrder = 2;
+      world.add(mist);
+
+      const accentLight = new THREE.PointLight("#5ee8ef", 8, 9, 2);
+      accentLight.position.set(0, 1.2, 2.2);
+      world.add(accentLight);
+      setReady(true);
 
       return {
         update(delta, elapsed) {
           controls.update();
+          waterfallMaterial.uniforms.uTime.value = elapsed;
+          streamMaterial.uniforms.uTime.value = elapsed;
           poolMaterial.uniforms.uTime.value = elapsed;
-          animatedMaps.forEach((map, index) => {
-            map.offset.y = -elapsed * (0.22 + index * 0.004);
+
+          const positions = splashGeometry.attributes.position
+            .array as Float32Array;
+          for (let i = 0; i < splashCount; i += 1) {
+            const particle = splashParticles[i];
+            particle.age += delta;
+            if (particle.age >= particle.life) resetSplash(i);
+            const t = particle.age;
+            positions[i * 3] = particle.origin.x + particle.velocity.x * t;
+            positions[i * 3 + 1] =
+              particle.origin.y + particle.velocity.y * t - 2.7 * t * t;
+            positions[i * 3 + 2] =
+              particle.origin.z + particle.velocity.z * t;
+          }
+          splashGeometry.attributes.position.needsUpdate = true;
+
+          foamBlobs.forEach((blob, index) => {
+            const pulse = 1 + Math.sin(elapsed * 3.1 + index * 1.7) * 0.1;
+            blob.scale.y = 0.36 * pulse;
+            blob.position.y =
+              0.12 + (index % 3) * 0.055 + Math.sin(elapsed * 2.4 + index) * 0.025;
           });
-
-          const positions = sprayGeometry.attributes.position
-            .array as Float32Array;
-          for (let i = 0; i < sprayCount; i += 1) {
-            positions[i * 3] += sprayVelocity[i * 3] * delta;
-            positions[i * 3 + 1] += sprayVelocity[i * 3 + 1] * delta;
-            positions[i * 3 + 2] += sprayVelocity[i * 3 + 2] * delta;
-            sprayVelocity[i * 3 + 1] -= 0.42 * delta;
-            if (
-              positions[i * 3 + 1] > 2.25 ||
-              positions[i * 3 + 1] < -0.25
-            ) {
-              resetSpray(i);
-            }
-          }
-          sprayGeometry.attributes.position.needsUpdate = true;
-
-          const foamArray = foamGeometry.attributes.position
-            .array as Float32Array;
-          for (let i = 0; i < foamCount; i += 1) {
-            foamArray[i * 3 + 1] =
-              -0.07 + Math.sin(elapsed * 1.8 + foamOrigins[i]) * 0.025;
-          }
-          foamGeometry.attributes.position.needsUpdate = true;
-          bounce.intensity = 22 + Math.sin(elapsed * 1.4) * 2;
+          lipBlobs.forEach((blob, index) => {
+            blob.position.y =
+              6.39 + (index % 2) * 0.025 + Math.sin(elapsed * 2.2 + index) * 0.018;
+            blob.scale.x = 1.08 + Math.sin(elapsed * 1.8 + index * 0.7) * 0.055;
+          });
+          mist.rotation.y = Math.sin(elapsed * 0.16) * 0.08;
+          accentLight.intensity = 7.5 + Math.sin(elapsed * 2.0) * 0.8;
         },
         dispose() {
-          cancelled = true;
           controls.dispose();
           sprite.dispose();
-          animatedMaps.forEach((map) => map.dispose());
           setReady(false);
         },
       };
@@ -387,17 +362,17 @@ export function GameWaterfallScene() {
     <div className="waterfall-experience">
       <ThreeCanvas
         className="waterfall-canvas"
-        label="可交互的峡谷瀑布游戏场景"
+        label="可交互的二次元峡谷瀑布场景"
         onReady={createScene}
       />
       <div className={`scene-loader ${ready ? "is-ready" : ""}`}>
         <span />
-        <p>正在生成峡谷环境</p>
+        <p>正在绘制二次元水流</p>
       </div>
       <div className="scene-hud" aria-hidden="true">
-        <span>DRAG TO LOOK</span>
+        <span>拖动观察</span>
         <i />
-        <span>SCROLL TO ZOOM</span>
+        <span>滚轮缩放</span>
       </div>
     </div>
   );

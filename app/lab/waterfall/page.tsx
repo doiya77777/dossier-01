@@ -3,9 +3,9 @@ import { GameWaterfallScene } from "../../../components/three/GameWaterfallScene
 import "./lab.css";
 
 export const metadata: Metadata = {
-  title: "峡谷瀑布 — Three.js Game Environment",
+  title: "二次元峡谷瀑布 — Three.js Anime VFX",
   description:
-    "使用真实 CC0 游戏资产、Three.js 水体动画和粒子系统构建的可交互峡谷瀑布。",
+    "使用分层色带、程序化轮廓与水花粒子构建的可交互二次元游戏瀑布。",
 };
 
 export default function WaterfallPage() {
@@ -23,7 +23,7 @@ export default function WaterfallPage() {
 
       <section className="lab-hero">
         <div className="lab-heading">
-          <p className="lab-kicker">GAME ENVIRONMENT STUDY / 001</p>
+          <p className="lab-kicker">ANIME WATER VFX STUDY / 001</p>
           <h1>
             峡谷
             <br />
@@ -31,9 +31,9 @@ export default function WaterfallPage() {
           </h1>
         </div>
         <p className="lab-intro">
-          一座运行在浏览器里的微型游戏关卡。
+          一座运行在浏览器里的二次元游戏场景。
           <br />
-          拖动镜头，从不同角度观察水流、岩壁和雾气。
+          拖动镜头，观察分层水纹、泡沫和夸张水花。
         </p>
       </section>
 
@@ -45,41 +45,41 @@ export default function WaterfallPage() {
         <div>
           <span className="eyebrow">SCENE BREAKDOWN</span>
           <h2>
-            真正的瀑布，
+            二次元瀑布，
             <br />
-            是一套环境系统。
+            先设计运动，再设计水。
           </h2>
         </div>
         <div className="explanation-copy">
           <p>
-            场景使用 Kenney Nature Kit 的悬崖、岩石、松树与植被模型，结合
-            Toon Waterfall 的分层水流模型。水池、泡沫、飞溅和灯光则由
-            Three.js 在浏览器中实时生成。
+            这版不模拟写实透明水，而是把动画里的水拆成明确色阶：深色水体、
+            青色流带、白色速度线和撞击泡沫。每一层拥有不同尺度与速度，因此
+            即使没有昂贵的流体模拟，也能读出持续下落的力量。
           </p>
           <ol>
             <li>
-              <b>地形资产</b>
+              <b>专用水帘网格</b>
               <br />
-              多个独立模型拼成完整峡谷，保证轮廓和尺度像一处游戏关卡。
+              网格沿下落方向向外弯曲，宽度和轮廓由独立参数控制，不再是一张矩形贴图。
             </li>
             <li>
-              <b>分层水流</b>
+              <b>四层动画色带</b>
               <br />
-              瀑布模型包含多层透明水片，通过持续滚动 UV 产生下落运动。
+              宽阴影、细流线、快速高光与上下泡沫使用不同频率和速度叠加。
             </li>
             <li>
-              <b>水面反馈</b>
+              <b>夸张撞击反馈</b>
               <br />
-              Shader 驱动水池波纹，泡沫和喷雾粒子连接落水点与水面。
+              低多边形泡沫团、抛物线水滴和扩散波纹共同表现瀑布落水的冲击。
             </li>
             <li>
-              <b>实时镜头</b>
+              <b>轻量实时渲染</b>
               <br />
-              轨道镜头、软阴影、雾和色调映射共同建立游戏环境的空间感。
+              无折射预通道、无大型扫描模型；主要动画都在 GPU Shader 中完成。
             </li>
           </ol>
           <p className="asset-note">
-            3D assets: Kenney Nature Kit + Toon Waterfall · CC0
+            ORIGINAL THREE.JS / GLSL STUDY · NO EXTERNAL SCENE ASSETS
           </p>
         </div>
       </section>
