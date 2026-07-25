@@ -1,0 +1,7 @@
+Asset pack: Nature Kit
+Author: Kenney
+Source: https://opengameart.org/content/nature-kit
+License: CC0 1.0 Universal
+
+Selected GLB assets from the pack are used for cliffs, rocks, trees, grass,
+and bushes in the interactive waterfall environment.
